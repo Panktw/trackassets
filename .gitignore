@@ -1,0 +1,14 @@
+# 1. 忽略所有檔案與資料夾
+*
+
+# 2. 允許 Git 讀取 lib 資料夾（關鍵：必須先放行資料夾，才能放行裡面的檔案）
+!lib/
+
+# 3. 忽略 lib 資料夾下的所有內容
+lib/*
+
+# 4. 只放行特定的 lib/main.dart
+!lib/main.dart
+
+# 5. 建議同時放行 .gitignore 本身
+!.gitignore
