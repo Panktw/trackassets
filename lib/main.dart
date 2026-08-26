@@ -56,7 +56,7 @@ class AssetHomePage extends StatefulWidget {
 // 核心資料源改為儲存由 Drift 讀出來的 InvestmentItem 列表
 class _AssetHomePageState extends State<AssetHomePage> {
   List<InvestmentItem> _historyList = [];
-  final Map<String, double> _realPriceCache = {};
+  static final Map<String, double> _realPriceCache = {};
   bool _isLoadingPrices = false;
 
   // 🌟 背景定時器宣告
@@ -1274,6 +1274,23 @@ class _EditAssetPageState extends State<EditAssetPage> {
   String? _selectedSymbol;
   bool get isEditMode => widget.itemIdToEdit != null;
 
+  // 🌟 新增：智慧判定價格獲取器（優先讀取記憶體快取，查無則提示）
+  String _getCurrentMarketPriceForForm(String symbolKey) {
+    final key = symbolKey.trim().toUpperCase();
+
+    // 🎯 智慧判定：檢查首頁全域的靜態記憶體快取中是否存在此代號的價格
+    if (_AssetHomePageState._realPriceCache.containsKey(key)) {
+      final double cachedPrice = _AssetHomePageState._realPriceCache[key]!;
+      if (cachedPrice > 0) {
+        // 根據價格大小自動決定小數點位數
+        return '\$${cachedPrice.toStringAsFixed(cachedPrice < 2 ? 4 : 2)}';
+      }
+    }
+
+    // 🎯 找不到最近一次價格時的安全閥回傳文字
+    return '尚未取得最近一次價格';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1420,6 +1437,58 @@ class _EditAssetPageState extends State<EditAssetPage> {
                   },
             ),
             const SizedBox(height: 20),
+
+            // 🎯 ⭐ 智慧判定動態渲染看板
+            if (_selectedSymbol != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0, left: 4.0),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.monetization_on,
+                      color: Colors.orange,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '目前市場參考價：',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Builder(
+                      builder: (context) {
+                        final priceText = _getCurrentMarketPriceForForm(
+                          _selectedSymbol!,
+                        );
+                        final bool isPriceAvailable = !priceText.contains(
+                          '尚未取得',
+                        );
+
+                        return Text(
+                          priceText,
+                          style: TextStyle(
+                            fontSize: 14,
+                            // 🎯 如果有價格顯示藍色加粗，若尚未取得則顯示深灰色
+                            color: isPriceAvailable
+                                ? Colors.indigo
+                                : Colors.grey.shade600,
+                            fontWeight: isPriceAvailable
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            fontStyle: isPriceAvailable
+                                ? null
+                                : FontStyle.italic, // 尚未取得時加個斜體更顯眼
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
             TextField(
               controller: _priceController,
               keyboardType: const TextInputType.numberWithOptions(
