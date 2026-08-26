@@ -1273,7 +1273,7 @@ class _EditAssetPageState extends State<EditAssetPage> {
 
   String? _selectedSymbol;
   bool get isEditMode => widget.itemIdToEdit != null;
-
+  ///////////////
   // 🌟 新增：智慧判定價格獲取器（優先讀取記憶體快取，查無則提示）
   String _getCurrentMarketPriceForForm(String symbolKey) {
     final key = symbolKey.trim().toUpperCase();
@@ -1291,6 +1291,51 @@ class _EditAssetPageState extends State<EditAssetPage> {
     return '尚未取得最近一次價格';
   }
 
+  ////////////////
+  ///
+  // 🌟 修改：直接存放對應的價格與整份 JSON 最上層的 last_updated 時間字串
+  double? _fetchedPrice;
+  String? _lastUpdatedTimeStr;
+  bool _isFetchingLocalPrice = false;
+
+  // 🌟 核心非同步反查：當使用者一選定項目，立刻去 SQLite 挖出上一次的價格與更新時間
+  Future<void> _loadSelectedMarketPriceInfo(String symbolKey) async {
+    if (_isFetchingLocalPrice) return;
+
+    setState(() {
+      _isFetchingLocalPrice = true;
+      _fetchedPrice = null;
+      _lastUpdatedTimeStr = null;
+    });
+
+    final key = symbolKey.trim().toUpperCase();
+
+    // 🎯 透過 Drift 從 SQLite 快取表中精準捕捉該標的的價格與更新時間
+    final record = await (db.select(
+      db.marketPriceCaches,
+    )..where((t) => t.symbol.equals(key))).getSingleOrNull();
+
+    if (mounted) {
+      setState(() {
+        if (record != null) {
+          _fetchedPrice = record.price;
+
+          // 🎯 將資料庫儲存的 updatedAt 轉化為格式化字串
+          final time = record.updatedAt;
+          final String formattedMonth = time.month.toString().padLeft(2, '0');
+          final String formattedDay = time.day.toString().padLeft(2, '0');
+          //final String formattedHour = time.hour.toString().padLeft(2, '0');
+          //final String formattedMinute = time.minute.toString().padLeft(2, '0');
+
+          _lastUpdatedTimeStr = '$formattedMonth/$formattedDay';
+          //'$formattedMonth/$formattedDay $formattedHour:$formattedMinute';
+        }
+        _isFetchingLocalPrice = false;
+      });
+    }
+  }
+
+  ///
   @override
   void initState() {
     super.initState();
@@ -1431,6 +1476,8 @@ class _EditAssetPageState extends State<EditAssetPage> {
                             _nameController.text = symbol;
                             controller.closeView(symbol);
                           });
+                          // 🎯 ⭐ 修正點：選定項目後，立刻發動非同步 SQLite 硬碟反查，撈取時間與單價
+                          _loadSelectedMarketPriceInfo(symbol);
                         },
                       );
                     }).toList();
@@ -1438,11 +1485,12 @@ class _EditAssetPageState extends State<EditAssetPage> {
             ),
             const SizedBox(height: 20),
 
-            // 🎯 ⭐ 智慧判定動態渲染看板
+            // 🎯 ⭐ 智慧型雙欄位（價格 ＋ 統一 last_updated 時間）動態渲染看板
             if (_selectedSymbol != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8.0, left: 4.0),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const Icon(
                       Icons.monetization_on,
@@ -1458,33 +1506,52 @@ class _EditAssetPageState extends State<EditAssetPage> {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    Builder(
-                      builder: (context) {
-                        final priceText = _getCurrentMarketPriceForForm(
-                          _selectedSymbol!,
-                        );
-                        final bool isPriceAvailable = !priceText.contains(
-                          '尚未取得',
-                        );
+                    _isFetchingLocalPrice
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 1.5),
+                          )
+                        : Builder(
+                            builder: (context) {
+                              // 💡 智慧型判定：如果快取內有價格且大於 0，就漂亮展現數字與最後更新時間
+                              if (_fetchedPrice != null &&
+                                  _fetchedPrice! > 0 &&
+                                  _lastUpdatedTimeStr != null) {
+                                return Row(
+                                  children: [
+                                    Text(
+                                      '\$${_fetchedPrice!.toStringAsFixed(_fetchedPrice! < 2 ? 4 : 2)} ',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.indigo,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    // 🎯 緊跟在價格後面的精美小字時間戳印
+                                    Text(
+                                      '($_lastUpdatedTimeStr 同步市場價格)',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade500,
+                                        fontWeight: FontWeight.normal,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }
 
-                        return Text(
-                          priceText,
-                          style: TextStyle(
-                            fontSize: 14,
-                            // 🎯 如果有價格顯示藍色加粗，若尚未取得則顯示深灰色
-                            color: isPriceAvailable
-                                ? Colors.indigo
-                                : Colors.grey.shade600,
-                            fontWeight: isPriceAvailable
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            fontStyle: isPriceAvailable
-                                ? null
-                                : FontStyle.italic, // 尚未取得時加個斜體更顯眼
+                              // 💡 找不到價格時，誠實地顯示灰色斜體文字
+                              return Text(
+                                '尚未取得最近一次價格',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.grey.shade600,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
                   ],
                 ),
               ),
