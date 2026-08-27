@@ -1275,21 +1275,21 @@ class _EditAssetPageState extends State<EditAssetPage> {
   bool get isEditMode => widget.itemIdToEdit != null;
   ///////////////
   // 🌟 新增：智慧判定價格獲取器（優先讀取記憶體快取，查無則提示）
-  String _getCurrentMarketPriceForForm(String symbolKey) {
-    final key = symbolKey.trim().toUpperCase();
+  // String _getCurrentMarketPriceForForm(String symbolKey) {
+  //   final key = symbolKey.trim().toUpperCase();
 
-    // 🎯 智慧判定：檢查首頁全域的靜態記憶體快取中是否存在此代號的價格
-    if (_AssetHomePageState._realPriceCache.containsKey(key)) {
-      final double cachedPrice = _AssetHomePageState._realPriceCache[key]!;
-      if (cachedPrice > 0) {
-        // 根據價格大小自動決定小數點位數
-        return '\$${cachedPrice.toStringAsFixed(cachedPrice < 2 ? 4 : 2)}';
-      }
-    }
+  //   // 🎯 智慧判定：檢查首頁全域的靜態記憶體快取中是否存在此代號的價格
+  //   if (_AssetHomePageState._realPriceCache.containsKey(key)) {
+  //     final double cachedPrice = _AssetHomePageState._realPriceCache[key]!;
+  //     if (cachedPrice > 0) {
+  //       // 根據價格大小自動決定小數點位數
+  //       return '\$${cachedPrice.toStringAsFixed(cachedPrice < 2 ? 4 : 2)}';
+  //     }
+  //   }
 
-    // 🎯 找不到最近一次價格時的安全閥回傳文字
-    return '尚未取得最近一次價格';
-  }
+  //   // 🎯 找不到最近一次價格時的安全閥回傳文字
+  //   return '尚未取得最近一次價格';
+  // }
 
   ////////////////
   ///
